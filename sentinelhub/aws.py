@@ -93,8 +93,19 @@ class AwsService(ABC):
         :return: verified list of metadata files
         :rtype: list(str)
         """
-        all_metafiles = AwsConstants.S2_L1C_METAFILES if self.data_collection is DataCollection.SENTINEL2_L1C else \
-            AwsConstants.S2_L2A_METAFILES
+
+        if not hasattr(self, 'safe_type'):
+            self.safe_type = self.get_safe_type()
+
+        if not hasattr(self, 'baseline'):
+            self.baseline = self.get_baseline()
+
+        if self.baseline >= '04.00':
+            all_metafiles = AwsConstants.S2_L1C_METAFILES_POST_04_00 if self.data_collection is DataCollection.SENTINEL2_L1C \
+                else AwsConstants.S2_L2A_METAFILES_POST_04_00
+        else:
+            all_metafiles = AwsConstants.S2_L1C_METAFILES if self.data_collection is DataCollection.SENTINEL2_L1C else \
+                AwsConstants.S2_L2A_METAFILES
 
         if metafile_input is None:
             if self.__class__.__name__ == 'SafeProduct':
@@ -338,6 +349,7 @@ class AwsProduct(AwsService):
         client = AwsDownloadClient(config=self.config)
         self.product_info = client.get_json(self.get_url(AwsConstants.PRODUCT_INFO))
 
+        # import ipdb; ipdb.set_trace()
         self.baseline = self.get_baseline()
 
     @staticmethod
@@ -366,8 +378,10 @@ class AwsProduct(AwsService):
         :return: List of download requests and list of empty folders that need to be created
         :rtype: (list(download.DownloadRequest), list(str))
         """
+
+        aws_files = AwsConstants.AWS_FILES_POST_04_00 if self.baseline >= '04.00' else AwsConstants.AWS_FILES
         self.download_list = [DownloadRequest(url=self.get_url(metafile), filename=self.get_filepath(metafile),
-                                              data_type=AwsConstants.AWS_FILES[metafile], data_name=metafile) for
+                                              data_type=aws_files[metafile], data_name=metafile) for
                               metafile in self.metafiles if metafile in AwsConstants.PRODUCT_FILES]
 
         tile_parent_folder = os.path.join(self.parent_folder, self.product_id)
@@ -488,26 +502,28 @@ class AwsTile(AwsService):
         :param config: A custom instance of config class to override parameters from the saved configuration.
         :type config: SHConfig or None
         """
-        self.tile_name = self.parse_tile_name(tile_name)
-
-        self.timestamp = parse_time(time, ignoretz=True)
-        self.date = self.timestamp.date() if isinstance(self.timestamp, dt.datetime) else self.timestamp
-
         self.aws_index = aws_index
         self.data_collection = data_collection
+        self.config = kwargs.get('config') or SHConfig()
+        self.tile_name = self.parse_tile_name(tile_name)
 
-        super().__init__(**kwargs)
-        self.tile_url = None
+        self.base_url = self.get_base_url()
+        self.base_http_url = self.get_base_url(force_http=True)
+        self.timestamp = parse_time(time, ignoretz=True)
+        self.date = self.timestamp.date() if isinstance(self.timestamp, dt.datetime) else self.timestamp
+        self.tile_url = self.get_tile_url()
+
+        self.tile_info = self.get_tile_info()
+        self.product_id = self.get_product_id()
 
         self.aws_index = self.get_aws_index()
-        self.tile_url = self.get_tile_url()
-        self.tile_info = self.get_tile_info()
-        if not self.tile_is_valid():
-            raise ValueError('Cannot find data on AWS for specified tile, time and aws_index')
-
-        self.product_id = self.get_product_id()
         self.safe_type = self.get_safe_type()
         self.baseline = self.get_baseline()
+
+        super().__init__(**kwargs)
+
+        if not self.tile_is_valid():
+            raise ValueError('Cannot find data on AWS for specified tile, time and aws_index')
 
     @staticmethod
     def parse_tile_name(name):

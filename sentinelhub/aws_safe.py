@@ -62,8 +62,9 @@ class SafeProduct(AwsProduct):
         for tile_info in self.product_info['tiles']:
             tile_name, date, aws_index = self.url_to_tile(self.get_tile_url(tile_info))
             if self.tile_list is None or AwsTile.parse_tile_name(tile_name) in self.tile_list:
-                tile_struct = SafeTile(tile_name, date, aws_index, parent_folder=None, bands=self.bands,
-                                       metafiles=self.metafiles, data_collection=self.data_collection).get_safe_struct()
+                tile = SafeTile(tile_name, date, aws_index, parent_folder=None, bands=self.bands,
+                                metafiles=self.metafiles, data_collection=self.data_collection)
+                tile_struct = tile.get_safe_struct(post_04_00_baseline=self.baseline >= '04.00')
                 for tile_name, safe_struct in tile_struct.items():
                     safe[main_folder][AwsConstants.GRANULE][tile_name] = safe_struct
 
@@ -180,7 +181,7 @@ class SafeTile(AwsTile):
         self.sort_download_list()
         return self.download_list, self.folder_list
 
-    def get_safe_struct(self):
+    def get_safe_struct(self, post_04_00_baseline=False):
         """ Describes a structure inside tile folder of ESA product .SAFE structure.
 
         :return: nested dictionaries representing .SAFE structure
@@ -220,11 +221,26 @@ class SafeTile(AwsTile):
                         self.get_url(band_name)
 
         safe[main_folder][AwsConstants.QI_DATA] = {}
-        safe[main_folder][AwsConstants.QI_DATA][self.get_qi_name('CLOUDS')] = self.get_gml_url('CLOUDS')
-        for qi_type in AwsConstants.QI_LIST:
-            for band in AwsConstants.S2_L1C_BANDS:
-                safe[main_folder][AwsConstants.QI_DATA][self.get_qi_name(qi_type, band)] = self.get_gml_url(qi_type,
-                                                                                                            band)
+        if not post_04_00_baseline:
+            safe[main_folder][AwsConstants.QI_DATA][self.get_qi_name('CLOUDS')] = self.get_gml_url('CLOUDS')
+        else:
+            safe[main_folder][AwsConstants.QI_DATA][self.get_qi_name(qi_type='CLDPRB', band='20m', data_format=MimeType.JP2)] =\
+                self.get_qi_url('{}_{}.{}'.format('CLDPRB', '20m', MimeType.JP2.value))
+            safe[main_folder][AwsConstants.QI_DATA][self.get_qi_name(qi_type='CLDPRB', band='60m', data_format=MimeType.JP2)] =\
+                self.get_qi_url('{}_{}.{}'.format('CLDPRB', '60m', MimeType.JP2.value))
+            safe[main_folder][AwsConstants.QI_DATA][self.get_qi_name(qi_type='CLASSI', band='B00', data_format=MimeType.JP2)] =\
+                self.get_qi_url('{}_{}.{}'.format('CLASSI', 'B00', MimeType.JP2.value))
+
+        if post_04_00_baseline:
+            for qi_type in AwsConstants.QI_LIST_POST_04_00:
+                for band in AwsConstants.S2_L1C_BANDS:
+                    safe[main_folder][AwsConstants.QI_DATA][self.get_qi_name(qi_type, band, data_format=MimeType.JP2)] = \
+                        self.get_qi_url('{}_{}.{}'.format(qi_type, band, MimeType.JP2.value))
+        else:
+            for qi_type in AwsConstants.QI_LIST:
+                for band in AwsConstants.S2_L1C_BANDS:
+                    safe[main_folder][AwsConstants.QI_DATA][self.get_qi_name(qi_type, band)] = \
+                        self.get_gml_url(qi_type, band)
 
         if self.has_reports():
             for metafile in AwsConstants.QUALITY_REPORTS:

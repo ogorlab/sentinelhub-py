@@ -489,6 +489,12 @@ class AwsConstants:
     AUX_ECMWFT = 'auxiliary/AUX_ECMWFT'
     DATASTRIP_METADATA = 'datastrip/*/metadata'
 
+    # Post baseline 04.00 QI constants
+    QI_LIST_POST_04_00 = ['DETFOO', 'QUALIT']
+    QI_MSK_CLASSI = 'qi/CLASSI_B00'
+    QI_MSK_CLDPRB_20M = 'qi/CLDPRB_20m'
+    QI_MSK_CLDPRB_60M = 'qi/CLDPRB_60m'
+
     # More constants about L2A
     AOT = 'AOT'
     WVP = 'WVP'
@@ -503,6 +509,7 @@ class AwsConstants:
     RADIOMETRIC_QUALITY = 'RADIOMETRIC_QUALITY'
     SENSOR_QUALITY = 'SENSOR_QUALITY'
     QUALITY_REPORTS = [FORMAT_CORRECTNESS, GENERAL_QUALITY, GEOMETRIC_QUALITY, RADIOMETRIC_QUALITY, SENSOR_QUALITY]
+    QUALITY_REPORTS_POST_04_00 = [FORMAT_CORRECTNESS, GENERAL_QUALITY, GEOMETRIC_QUALITY, SENSOR_QUALITY]
     CLASS_MASKS = ['SNW', 'CLD']
     R10m = 'R10m'
     R20m = 'R20m'
@@ -524,6 +531,16 @@ class AwsConstants:
                        [f'qi/{qi_report}' for qi_report in [FORMAT_CORRECTNESS, GENERAL_QUALITY,
                                                             GEOMETRIC_QUALITY, SENSOR_QUALITY]] +\
                        [ECMWFT]
+    S2_L1C_METAFILES_POST_04_00 = \
+                       [PRODUCT_INFO, TILE_INFO, METADATA, INSPIRE, MANIFEST, DATASTRIP_METADATA] + \
+                       [PREVIEW, PREVIEW_JP2, TCI] + \
+                       ['{}/{}'.format(preview, band) for preview, band in it.zip_longest([], S2_L1C_BANDS,
+                                                                                          fillvalue=PREVIEW)] + \
+                       [QI_MSK_CLASSI] + \
+                       ['qi/{}_{}'.format(qi, band) for qi, band in it.product(QI_LIST_POST_04_00, S2_L1C_BANDS)] + \
+                       ['qi/{}'.format(qi_report) for qi_report in [FORMAT_CORRECTNESS, GENERAL_QUALITY,
+                                                                    GEOMETRIC_QUALITY, SENSOR_QUALITY]] + \
+                       [ECMWFT]
 
     # Sentinel-2 L2A products:
     S2_L2A_BANDS = [f'{resolution}/{band}' for resolution, band_list in sorted(S2_L2A_BAND_MAP.items())
@@ -535,6 +552,16 @@ class AwsConstants:
                        [f'qi/MSK_{qi}_{band}' for qi, band in it.product(QI_LIST, S2_L1C_BANDS)] +\
                        [QI_MSK_CLOUD] +\
                        [f'qi/{qi_report}' for qi_report in QUALITY_REPORTS] +\
+                       [ECMWFT, AUX_ECMWFT, GIPP]
+    S2_L2A_METAFILES_POST_04_00 = \
+                       [PRODUCT_INFO, TILE_INFO, METADATA, INSPIRE, MANIFEST, L2A_MANIFEST, REPORT,
+                        DATASTRIP_METADATA] + ['datastrip/*/qi/{}'.format(qi_report)for qi_report in QUALITY_REPORTS_POST_04_00] +\
+                       ['qi/{}_PVI'.format(source_id) for source_id in SOURCE_ID_LIST] +\
+                       ['qi/{}_{}'.format(mask, res.lstrip('R')) for mask, res in it.product(CLASS_MASKS,
+                                                                                             [R20m, R60m])] +\
+                       ['qi/{}_{}'.format(qi, band) for qi, band in it.product(QI_LIST_POST_04_00, S2_L1C_BANDS)] +\
+                       [QI_MSK_CLASSI] + \
+                       ['qi/{}'.format(qi_report) for qi_report in QUALITY_REPORTS] +\
                        [ECMWFT, AUX_ECMWFT, GIPP]
 
     # Product files with formats:
@@ -567,11 +594,36 @@ class AwsConstants:
                   **{f'qi/{mask}_{res.lstrip("R")}': MimeType.JP2 for mask, res in it.product(CLASS_MASKS,
                                                                                               [R20m, R60m])}}
 
+    TILE_FILES_POST_04_00 = {**{TILE_INFO: MimeType.JSON,
+                     PRODUCT_INFO: MimeType.JSON,
+                     METADATA: MimeType.XML,
+                     PREVIEW: MimeType.JPG,
+                     PREVIEW_JP2: MimeType.JP2,
+                     TCI: MimeType.JP2,
+                     QI_MSK_CLASSI: MimeType.JP2,
+                     ECMWFT: MimeType.RAW,
+                     AUX_ECMWFT: MimeType.RAW,
+                     GIPP: MimeType.XML},
+                  **{'qi/{}'.format(qi_report): MimeType.XML for qi_report in QUALITY_REPORTS},
+                  **{'{}/{}'.format(preview, band): MimeType.JP2
+                     for preview, band in it.zip_longest([], S2_L1C_BANDS, fillvalue=PREVIEW)},
+                  **{'qi/MSK_{}_{}'.format(qi, band): MimeType.JP2 for qi, band in it.product(QI_LIST_POST_04_00, S2_L1C_BANDS)},
+                  **{band: MimeType.JP2 for band in S2_L1C_BANDS},
+                  **{band: MimeType.JP2 for band in S2_L2A_BANDS},
+                  **{'qi/{}_PVI'.format(source_id): MimeType.JP2 for source_id in SOURCE_ID_LIST},
+                  **{'qi/{}_{}'.format(mask, res.lstrip('R')): MimeType.JP2 for mask, res in it.product(CLASS_MASKS,
+                                                                                                        [R20m, R60m])}}
+
     # All files joined together
     AWS_FILES = {**PRODUCT_FILES,
                  **{filename.split('/')[-1]: data_format for filename, data_format in PRODUCT_FILES.items()},
                  **TILE_FILES,
                  **{filename.split('/')[-1]: data_format for filename, data_format in TILE_FILES.items()}}
+
+    AWS_FILES_POST_04_00 = {**PRODUCT_FILES,
+                            **{filename.split('/')[-1]: data_format for filename, data_format in PRODUCT_FILES.items()},
+                            **TILE_FILES_POST_04_00,
+                            **{filename.split('/')[-1]: data_format for filename, data_format in TILE_FILES_POST_04_00.items()}}
 
 
 class EsaSafeType(Enum):
